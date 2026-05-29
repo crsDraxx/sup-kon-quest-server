@@ -16,12 +16,28 @@ wss.on('connection', (ws) => {
   clientIds.set(ws, peerId);
   console.log(`[+] Joueur connecté : peer_${peerId}`);
 
-  // Envoyer l'ID au nouveau client
-  send(ws, { type: 'connected', peer_id: peerId });
+  // Godot WebSocketMultiplayerPeer attend l'ID en 4 bytes big-endian
+  // suivi du type de message (1 = ID assignment)
+  const buf = Buffer.alloc(8);
+  buf.writeUInt32BE(peerId, 0);   // peer_id
+  buf.writeUInt32BE(0, 4);        // target (0 = broadcast)
+  ws.send(buf);
 
   ws.on('message', (raw) => {
+    // Messages Godot sont binaires — extraire le payload JSON
     let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
+    try {
+      const str = raw.toString('utf8');
+      msg = JSON.parse(str);
+    } catch {
+      // Message binaire Godot natif — relayer directement
+      for (const [client] of clientIds) {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(raw);
+        }
+      }
+      return;
+    }
     handleMessage(ws, peerId, msg);
   });
 
