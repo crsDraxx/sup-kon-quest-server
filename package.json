@@ -1,12 +1,15 @@
 {
   "name": "sup-kon-quest-server",
   "version": "1.0.0",
-  "description": "Serveur de jeu dedié SupKonQuest",
+  "description": "SupKonQuest WebSocket Game Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
-    "ws": "^8.0.0"
+    "ws": "^8.18.0"
   }
 }
