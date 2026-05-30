@@ -1,29 +1,35 @@
 // server.js — SupKonQuest Game Server (relay Godot-compatible)
 const WebSocket = require('ws');
+const http = require('http');
+
 const PORT = process.env.PORT || 8080;
-const wss = new WebSocket.Server({ port: PORT });
+
+// Serveur HTTP pour le keep-alive UptimeRobot
+const server = http.createServer((req, res) => {
+  if (req.url === '/ping') {
+    res.writeHead(200);
+    res.end('pong');
+  } else {
+    res.writeHead(200);
+    res.end('SupKonQuest Server OK');
+  }
+});
+
+const wss = new WebSocket.Server({ server });
+
 const rooms = new Map();
 const clientRoom = new Map();
-
-// ── Compatibilité WebSocketMultiplayerPeer (Godot 4) ────────────────────────
-// Godot attend, comme TOUT PREMIER message du serveur, 4 octets = un int32
-// little-endian contenant le peer ID du client (≥ 2). Sans ce paquet, le peer
-// reste bloqué en CONNECTION_CONNECTING. On l'envoie donc dès la connexion.
-let peerIdCounter = 1;                 // le prochain ID attribué sera 2
-const clientPeerId = new Map();        // WebSocket -> int (peer ID)
-const roomPeerIds  = new Map();        // roomId -> Set<int> (peer IDs présents)
-
-console.log(`SupKonQuest Game Server démarré sur port ${PORT}`);
+let peerIdCounter = 1;
+const clientPeerId = new Map();
+const roomPeerIds  = new Map();
 
 wss.on('connection', (ws, req) => {
   const url    = new URL(req.url, 'http://localhost');
   const roomId = url.searchParams.get('room') || 'default';
-
   clientRoom.set(ws, roomId);
   if (!rooms.has(roomId)) rooms.set(roomId, new Set());
   rooms.get(roomId).add(ws);
 
-  // Attribuer un peer ID (≥ 2) et l'envoyer immédiatement en binaire (int32 LE).
   const peerId = ++peerIdCounter;
   clientPeerId.set(ws, peerId);
   if (!roomPeerIds.has(roomId)) roomPeerIds.set(roomId, new Set());
@@ -35,7 +41,6 @@ wss.on('connection', (ws, req) => {
 
   console.log(`[+] nouveau client -> room "${roomId}" (peer ${peerId}, ${rooms.get(roomId).size} joueurs)`);
 
-  // Relay pur : retransmettre tout message reçu à tous les autres peers.
   ws.on('message', (data, isBinary) => {
     const room = rooms.get(clientRoom.get(ws));
     if (!room) return;
@@ -67,4 +72,8 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('error', (err) => console.error(`[WS] Erreur:`, err.message));
+});
+
+server.listen(PORT, () => {
+  console.log(`SupKonQuest Game Server démarré sur port ${PORT}`);
 });
